@@ -1,0 +1,2317 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SnipeCraft - Jeu Voxel 3D</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #1c1917;
+            font-family: 'Silkscreen', monospace;
+            color: #f5f5f4;
+        }
+
+        #game-canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            inset: 0;
+            z-index: 1;
+        }
+
+        /* Ombre de texte arcade dure style Minecraft */
+        .mc-shadow {
+            text-shadow: 2px 2px 0px #141414;
+        }
+        .mc-shadow-lg {
+            text-shadow: 4px 4px 0px #141414;
+        }
+
+        /* Panneau biseauté authentique style Minecraft / Bloxd */
+        .mc-panel {
+            background-color: #c6c6c6;
+            color: #1f1f1f;
+            border: 4px solid #141414;
+            box-shadow:
+                inset 4px 4px 0px #ffffff,
+                inset -4px -4px 0px #555555,
+                0 8px 0 rgba(0, 0, 0, 0.55);
+        }
+
+        .mc-panel-dark {
+            background-color: #262423;
+            color: #f5f5f4;
+            border: 4px solid #0f0e0e;
+            box-shadow:
+                inset 3px 3px 0px #44403c,
+                inset -3px -3px 0px #141211,
+                0 8px 0 rgba(0, 0, 0, 0.65);
+        }
+
+        /* Bouton pierre en relief cliquable */
+        .mc-btn {
+            background-color: #78716c;
+            color: #ffffff;
+            border: 3px solid #141414;
+            box-shadow:
+                inset 3px 3px 0px #a8a29e,
+                inset -3px -3px 0px #44403c;
+            text-shadow: 2px 2px 0px #1c1917;
+            cursor: pointer;
+            transition: transform 0.05s steps(1);
+        }
+        .mc-btn:hover:not(:disabled) {
+            background-color: #848996;
+            box-shadow:
+                inset 3px 3px 0px #cbd5e1,
+                inset -3px -3px 0px #475569;
+        }
+        .mc-btn:active:not(:disabled) {
+            transform: translateY(2px);
+            box-shadow:
+                inset 3px 3px 0px #44403c,
+                inset -2px -2px 0px #a8a29e;
+        }
+        .mc-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .mc-btn-green {
+            background-color: #3c8527;
+            box-shadow:
+                inset 3px 3px 0px #6cc349,
+                inset -3px -3px 0px #2a631c;
+        }
+        .mc-btn-green:hover:not(:disabled) {
+            background-color: #499e30;
+            box-shadow:
+                inset 3px 3px 0px #86efac,
+                inset -3px -3px 0px #2a631c;
+        }
+
+        .mc-btn-amber {
+            background-color: #b45309;
+            box-shadow:
+                inset 3px 3px 0px #f59e0b,
+                inset -3px -3px 0px #78350f;
+        }
+        .mc-btn-amber:hover:not(:disabled) {
+            background-color: #d97706;
+            box-shadow:
+                inset 3px 3px 0px #fcd34d,
+                inset -3px -3px 0px #78350f;
+        }
+
+        .mc-btn-red {
+            background-color: #991b1b;
+            box-shadow:
+                inset 3px 3px 0px #ef4444,
+                inset -3px -3px 0px #7f1d1d;
+        }
+        .mc-btn-red:hover:not(:disabled) {
+            background-color: #b91c1c;
+        }
+
+        /* Emplacement d'inventaire / Hotbar creusé */
+        .mc-slot {
+            width: 50px;
+            height: 50px;
+            background-color: #8b8b8b;
+            border: 2px solid #141414;
+            box-shadow:
+                inset 3px 3px 0px #373737,
+                inset -3px -3px 0px #ffffff;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .mc-slot:hover {
+            background-color: #a3a3a3;
+        }
+        .mc-slot.selected {
+            background-color: #a8a29e;
+            outline: 4px solid #facc15;
+            z-index: 2;
+        }
+
+        /* Réticule central */
+        #crosshair {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 18px;
+            height: 18px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 10;
+            mix-blend-mode: difference;
+        }
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background: #ffffff;
+        }
+        #crosshair::before { top: 8px; left: 0; width: 18px; height: 2px; }
+        #crosshair::after { top: 0; left: 8px; width: 2px; height: 18px; }
+
+        /* Flash rouge de dégâts */
+        #damage-flash {
+            position: fixed;
+            inset: 0;
+            background: rgba(220, 38, 38, 0.42);
+            pointer-events: none;
+            z-index: 9;
+            opacity: 0;
+            transition: opacity 0.12s ease-out;
+        }
+
+        /* Barre de progression de minage */
+        #mining-bar-container {
+            position: fixed;
+            top: calc(50% + 22px);
+            left: 50%;
+            transform: translateX(-50%);
+            width: 84px;
+            height: 10px;
+            background: #141414;
+            border: 2px solid #ffffff;
+            z-index: 10;
+            pointer-events: none;
+        }
+        #mining-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: #facc15;
+        }
+
+        /* Range input style bloc */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 14px;
+            background: #373737;
+            border: 2px solid #141414;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 24px;
+            background: #a8a29e;
+            border: 2px solid #141414;
+            box-shadow: inset 2px 2px 0 #ffffff, inset -2px -2px 0 #555555;
+            cursor: pointer;
+        }
+
+        ::-webkit-scrollbar { width: 10px; }
+        ::-webkit-scrollbar-track { background: #373737; border: 2px solid #141414; }
+        ::-webkit-scrollbar-thumb { background: #8b8b8b; border: 2px solid #141414; }
+    </style>
+</head>
+<body>
+
+    <!-- Canvas 3D -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- Flash rouge lors d'un dégât -->
+    <div id="damage-flash"></div>
+
+    <!-- Réticule & Barre de minage -->
+    <div id="crosshair" class="hidden"></div>
+    <div id="mining-bar-container" class="hidden">
+        <div id="mining-bar-fill"></div>
+    </div>
+
+    <!-- HUD EN JEU -->
+    <div id="hud" class="hidden fixed inset-0 pointer-events-none z-10 flex flex-col justify-between p-3 sm:p-4">
+        <!-- Haut du HUD -->
+        <div class="flex justify-between items-start gap-2">
+            <div class="bg-black/65 border-2 border-stone-700 px-3 py-2 text-xs space-y-1 mc-shadow">
+                <div class="flex items-center gap-2">
+                    <span class="text-amber-400 font-bold">SNIPECRAFT</span>
+                    <span id="hud-gamemode-badge" class="px-1.5 py-0.5 bg-emerald-800 border border-emerald-500 text-emerald-200 text-[10px]">SURVIE</span>
+                </div>
+                <div>FPS: <span id="hud-fps" class="text-lime-400">60</span> | CHUNKS: <span id="hud-chunks" class="text-amber-300">0</span></div>
+                <div>XYZ: <span id="hud-coords" class="text-stone-200">0, 0, 0</span></div>
+                <div class="text-stone-300">PACK: <span id="hud-pack-name" class="text-white">Vanilla Craft</span></div>
+            </div>
+
+            <div class="flex flex-col items-end gap-2">
+                <button id="hud-pause-btn" class="mc-btn px-3 py-1.5 text-xs pointer-events-auto">
+                    PAUSE [ÉCHAP]
+                </button>
+                <div class="hidden md:block bg-black/60 border-2 border-stone-700 px-3 py-2 text-[11px] text-stone-200 space-y-1 mc-shadow text-right">
+                    <div>[CLIC G] Miner / Casser</div>
+                    <div>[CLIC D] Poser / Manger</div>
+                    <div>[<span id="hint-inv">E</span>] Inventaire & Craft</div>
+                    <div id="hint-fly-row">[<span id="hint-fly">F</span>] Voler (Créatif)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notification centrale -->
+        <div id="toast-msg" class="self-center bg-black/80 border-2 border-amber-400 text-amber-300 px-4 py-1.5 text-xs mc-shadow opacity-0 transition-opacity duration-200">
+            Notification
+        </div>
+
+        <!-- Bas du HUD : Barres Survie (Coeurs + Faim) + Nom item + Hotbar -->
+        <div class="flex flex-col items-center gap-1.5 mb-1">
+            <!-- Barres Survie uniquement visibles en mode Survie -->
+            <div id="survival-bars" class="flex justify-between w-full max-w-[474px] px-1">
+                <!-- 10 Cœurs (20 PV) -->
+                <div id="hearts-container" class="flex gap-0.5" title="Points de vie"></div>
+                <!-- 10 Gigots (20 Faim) -->
+                <div id="hunger-container" class="flex gap-0.5" title="Niveau de faim"></div>
+            </div>
+
+            <!-- Nom de l'objet tenu en main -->
+            <div id="held-item-name" class="bg-black/70 border border-stone-600 px-3 py-0.5 text-xs text-white mc-shadow h-6 flex items-center">
+                Main vide
+            </div>
+
+            <!-- Hotbar 9 emplacements -->
+            <div id="hotbar" class="flex gap-1 p-1.5 bg-stone-900/90 border-4 border-stone-950 pointer-events-auto shadow-lg">
+                <!-- Rempli par JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL INVENTAIRE & ARTISANAT (TOUCHE E) -->
+    <div id="inventory-modal" class="hidden fixed inset-0 z-30 bg-black/70 flex items-center justify-center p-3">
+        <div class="mc-panel max-w-2xl w-full p-4 sm:p-5 space-y-4 max-h-[92vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b-4 border-stone-500 pb-2">
+                <h2 id="inv-title" class="text-lg sm:text-xl font-bold text-stone-900">INVENTAIRE & ARTISANAT</h2>
+                <button id="close-inv-btn" class="mc-btn mc-btn-red px-3 py-1 text-xs">FERMER [E]</button>
+            </div>
+
+            <!-- Section Artisanat (Survie) OU Catalogue illimité (Créatif) -->
+            <div id="survival-crafting-section" class="space-y-3">
+                <div class="text-xs font-bold text-stone-800 uppercase">Recettes de fabrication rapide :</div>
+                <div id="crafting-recipes-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <!-- Généré par JS -->
+                </div>
+
+                <div class="text-xs font-bold text-stone-800 uppercase pt-2">Sac à dos & Barre d'action (Cliquez 2 slots pour échanger) :</div>
+                <div id="survival-inv-grid" class="grid grid-cols-9 gap-1 bg-stone-700 p-2 border-2 border-stone-900">
+                    <!-- 27 slots sac + 9 slots hotbar -->
+                </div>
+            </div>
+
+            <div id="creative-catalog-section" class="hidden space-y-3">
+                <div class="text-xs font-bold text-stone-800">Cliquez sur un bloc ou objet pour le placer dans votre main :</div>
+                <div id="creative-grid" class="grid grid-cols-5 sm:grid-cols-7 gap-2 bg-stone-700 p-3 border-2 border-stone-900">
+                    <!-- Tous les blocs en quantité infinie -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ÉCRAN DE MORT (MODE SURVIE) -->
+    <div id="death-screen" class="hidden fixed inset-0 z-40 bg-red-950/85 flex flex-col items-center justify-center p-4 text-center space-y-6">
+        <h1 class="text-3xl sm:text-5xl font-bold text-red-400 mc-shadow-lg">VOUS ÊTES MORT !</h1>
+        <p id="death-reason" class="text-sm sm:text-base text-stone-200 mc-shadow">Vous avez succombé à vos blessures.</p>
+        <div class="flex flex-col sm:flex-row gap-4">
+            <button id="respawn-btn" class="mc-btn mc-btn-green px-8 py-3.5 text-base font-bold">
+                RÉAPPARAÎTRE
+            </button>
+            <button id="death-menu-btn" class="mc-btn px-6 py-3.5 text-sm">
+                MENU PRINCIPAL
+            </button>
+        </div>
+    </div>
+
+    <!-- MENU PRINCIPAL / MENU PAUSE (ÉCHAP) -->
+    <div id="menu-overlay" class="fixed inset-0 z-20 bg-black/55 flex items-center justify-center p-3 sm:p-5">
+        <div class="mc-panel max-w-2xl w-full flex flex-col max-h-[94vh] overflow-hidden">
+            
+            <!-- Bannière Titre style Bloc -->
+            <div class="bg-stone-800 border-b-4 border-stone-950 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                    <h1 class="text-2xl sm:text-4xl font-bold text-amber-400 mc-shadow-lg tracking-wider">
+                        SNIPECRAFT
+                    </h1>
+                    <p class="text-[11px] sm:text-xs text-stone-300 mt-1 mc-shadow">
+                        SANDBOX VOXEL 3D • SURVIE & CRÉATIF
+                    </p>
+                </div>
+                <div id="pause-indicator" class="hidden self-start sm:self-center px-3 py-1 bg-amber-600 border-2 border-black text-white text-xs font-bold mc-shadow">
+                    JEU EN PAUSE
+                </div>
+            </div>
+
+            <!-- Onglets de navigation -->
+            <div class="flex flex-wrap gap-1.5 bg-stone-700 p-2 border-b-4 border-stone-900">
+                <button data-tab="tab-play" class="tab-btn mc-btn mc-btn-green px-3 py-2 text-xs font-bold">JOUER</button>
+                <button data-tab="tab-textures" class="tab-btn mc-btn px-3 py-2 text-xs font-bold">PACKS TEXTURES</button>
+                <button data-tab="tab-controls" class="tab-btn mc-btn px-3 py-2 text-xs font-bold">CONTRÔLES & OPTI</button>
+                <button data-tab="tab-credits" class="tab-btn mc-btn px-3 py-2 text-xs font-bold">CRÉDITS</button>
+            </div>
+
+            <!-- Contenu des onglets -->
+            <div class="p-4 sm:p-6 overflow-y-auto space-y-5 flex-1">
+
+                <!-- ONGLET 1 : JOUER & SÉLECTION MODE -->
+                <div id="tab-play" class="tab-content space-y-5">
+                    <!-- Sélecteur de Mode de Jeu -->
+                    <div class="space-y-2">
+                        <label class="block text-xs font-bold text-stone-800 uppercase">Mode de jeu actuel :</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <button id="select-survival-btn" class="mc-btn p-3.5 text-left flex flex-col gap-1 border-4">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm font-bold text-amber-300">⚔️ MODE SURVIE</span>
+                                    <span id="badge-survival" class="text-[10px] bg-black/50 px-1.5 py-0.5">ACTIF</span>
+                                </div>
+                                <span class="text-[11px] text-stone-200 leading-snug">
+                                    Cœurs, faim, minage progressif, récolte de ressources et artisanat.
+                                </span>
+                            </button>
+
+                            <button id="select-creative-btn" class="mc-btn p-3.5 text-left flex flex-col gap-1 border-4">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm font-bold text-sky-300">🧱 MODE CRÉATIF</span>
+                                    <span id="badge-creative" class="hidden text-[10px] bg-black/50 px-1.5 py-0.5">ACTIF</span>
+                                </div>
+                                <span class="text-[11px] text-stone-200 leading-snug">
+                                    Blocs illimités, cassage instantané, vol libre et construction sans limite.
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Résumé rapide -->
+                    <div class="bg-stone-300 border-2 border-stone-600 p-3 text-xs text-stone-900 space-y-1.5">
+                        <div><strong>Pack actif :</strong> <span id="home-pack-label" class="text-emerald-800 font-bold">Vanilla Craft</span></div>
+                        <div><strong>Commandes :</strong> <span id="home-keys-summary">Z Q S D</span> + Espace | <strong>Inventaire :</strong> <span id="home-inv-key">E</span> | <strong>Menu :</strong> Échap</div>
+                    </div>
+
+                    <!-- Bouton principal Lancer / Reprendre -->
+                    <div class="space-y-2.5 pt-1">
+                        <button id="start-game-btn" class="mc-btn mc-btn-green w-full py-4 text-lg font-bold tracking-wide">
+                            LANCER LA PARTIE
+                        </button>
+                        <div class="grid grid-cols-2 gap-2.5">
+                            <button id="new-world-btn" class="mc-btn py-2.5 text-xs font-bold">
+                                NOUVEAU MONDE
+                            </button>
+                            <button onclick="openTab('tab-textures')" class="mc-btn py-2.5 text-xs font-bold">
+                                CHANGER DE PACK
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ONGLET 2 : PACKS DE TEXTURES -->
+                <div id="tab-textures" class="tab-content hidden space-y-3">
+                    <p class="text-xs text-stone-800 font-bold">Sélectionnez un pack de textures pour modifier instantanément l'apparence du jeu :</p>
+                    <div id="packs-container" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <!-- Rempli par JS -->
+                    </div>
+                </div>
+
+                <!-- ONGLET 3 : CONTRÔLES PERSONNALISABLES & OPTIMISATION -->
+                <div id="tab-controls" class="tab-content hidden space-y-5">
+                    <!-- Optimisation -->
+                    <div class="bg-stone-300 border-2 border-stone-600 p-3.5 space-y-3">
+                        <h3 class="text-xs font-bold text-stone-900 uppercase border-b-2 border-stone-500 pb-1">Performances & Affichage</h3>
+                        
+                        <div>
+                            <div class="flex justify-between text-xs font-bold text-stone-800 mb-1">
+                                <span>Distance d'affichage :</span>
+                                <span id="rd-label" class="text-emerald-800">3 Chunks (Fluide)</span>
+                            </div>
+                            <input id="rd-slider" type="range" min="2" max="6" value="3" class="w-full">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs font-bold text-stone-800 mb-1">
+                                <span>Sensibilité souris :</span>
+                                <span id="sens-label" class="text-emerald-800">100%</span>
+                            </div>
+                            <input id="sens-slider" type="range" min="25" max="250" value="100" class="w-full">
+                        </div>
+
+                        <div class="flex flex-wrap gap-4 pt-1 text-xs font-bold text-stone-900">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input id="fog-check" type="checkbox" checked class="w-4 h-4 accent-emerald-700">
+                                <span>Brouillard horizon</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input id="particles-check" type="checkbox" checked class="w-4 h-4 accent-emerald-700">
+                                <span>Particules blocs</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Touches personnalisables -->
+                    <div class="space-y-2.5">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <h3 class="text-xs font-bold text-stone-900 uppercase">Configuration des Touches :</h3>
+                            <div class="flex gap-1.5">
+                                <button id="btn-azerty" class="mc-btn px-2.5 py-1 text-[11px]">AZERTY (FR)</button>
+                                <button id="btn-qwerty" class="mc-btn px-2.5 py-1 text-[11px]">QWERTY (EN)</button>
+                            </div>
+                        </div>
+                        <p class="text-[11px] text-stone-700">Cliquez sur un bouton de touche puis appuyez sur la touche voulue au clavier.</p>
+                        <div id="keybinds-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <!-- Rempli par JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ONGLET 4 : CRÉDITS -->
+                <div id="tab-credits" class="tab-content hidden space-y-4">
+                    <div class="mc-panel-dark p-5 text-center space-y-4">
+                        <h2 class="text-2xl font-bold text-amber-400 mc-shadow">SNIPECRAFT</h2>
+                        <p class="text-xs text-stone-300 leading-relaxed">
+                            Développé par <span class="text-white font-bold">SnipeCorp</span>.<br>
+                            Jeu voxel 3D sur navigateur inspiré de Minecraft et Bloxd.io avec moteur par chunks optimisé, modes Survie & Créatif, et packs de textures intégrés.
+                        </p>
+                        <div class="pt-2">
+                            <a href="https://snipecorp.clemfrdu31.workers.dev/" target="_blank" rel="noopener noreferrer"
+                               class="mc-btn mc-btn-amber inline-block px-6 py-3.5 text-sm font-bold tracking-wide">
+                                main website
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * ============================================================================
+         * SNIPECRAFT - MOTEUR VOXEL 3D (SURVIE & CRÉATIF, CHUNKS, ARTISANAT, TEXTURES)
+         * ============================================================================
+         */
+
+        // --- 1. DÉFINITION DES BLOCS & OBJETS ---
+        const ITEMS = {
+            AIR: 0,
+            GRASS: 1,
+            DIRT: 2,
+            STONE: 3,
+            WOOD: 4,
+            LEAVES: 5,
+            SAND: 6,
+            WATER: 7,
+            PLANKS: 8,
+            BRICK: 9,
+            GLASS: 10,
+            COBBLESTONE: 11,
+            COAL_ORE: 12,
+            BEDROCK: 13,
+            APPLE: 14 // Objet consommable (nourriture)
+        };
+
+        // Propriétés de chaque bloc/item (hardness = temps de minage en secondes en Survie)
+        const ITEM_DATA = {
+            [ITEMS.GRASS]:       { name: 'Bloc d\'Herbe', solid: true, placeable: true, hardness: 0.45, drop: ITEMS.DIRT },
+            [ITEMS.DIRT]:        { name: 'Terre', solid: true, placeable: true, hardness: 0.4, drop: ITEMS.DIRT },
+            [ITEMS.STONE]:       { name: 'Roche', solid: true, placeable: true, hardness: 1.25, drop: ITEMS.COBBLESTONE },
+            [ITEMS.WOOD]:        { name: 'Bûche de Chêne', solid: true, placeable: true, hardness: 0.85, drop: ITEMS.WOOD },
+            [ITEMS.LEAVES]:      { name: 'Feuillage', solid: true, placeable: true, transparent: true, hardness: 0.2, drop: ITEMS.APPLE, dropChance: 0.28 },
+            [ITEMS.SAND]:        { name: 'Sable', solid: true, placeable: true, hardness: 0.35, drop: ITEMS.SAND },
+            [ITEMS.WATER]:       { name: 'Eau', solid: false, placeable: false, transparent: true, hardness: Infinity },
+            [ITEMS.PLANKS]:      { name: 'Planches de Bois', solid: true, placeable: true, hardness: 0.65, drop: ITEMS.PLANKS },
+            [ITEMS.BRICK]:       { name: 'Briques', solid: true, placeable: true, hardness: 1.15, drop: ITEMS.BRICK },
+            [ITEMS.GLASS]:       { name: 'Verre', solid: true, placeable: true, transparent: true, hardness: 0.3, drop: ITEMS.GLASS },
+            [ITEMS.COBBLESTONE]: { name: 'Pierre Taillée', solid: true, placeable: true, hardness: 1.1, drop: ITEMS.COBBLESTONE },
+            [ITEMS.COAL_ORE]:    { name: 'Minerai de Charbon', solid: true, placeable: true, hardness: 1.4, drop: ITEMS.COAL_ORE },
+            [ITEMS.BEDROCK]:     { name: 'Bedrock (Incassable)', solid: true, placeable: true, hardness: Infinity, drop: null },
+            [ITEMS.APPLE]:       { name: 'Pomme (+4 Faim)', solid: false, placeable: false, food: 4, heal: 2 }
+        };
+
+        // Recettes d'artisanat rapide en mode Survie
+        const RECIPES = [
+            { id: 'planks', label: '4x Planches', inItem: ITEMS.WOOD, inCount: 1, outItem: ITEMS.PLANKS, outCount: 4 },
+            { id: 'brick',  label: '2x Briques', inItem: ITEMS.COBBLESTONE, inCount: 2, outItem: ITEMS.BRICK, outCount: 2 },
+            { id: 'glass',  label: '2x Verre', inItem: ITEMS.SAND, inCount: 2, outItem: ITEMS.GLASS, outCount: 2 },
+            { id: 'stone',  label: '2x Roche Lisse', inItem: ITEMS.COBBLESTONE, inCount: 2, outItem: ITEMS.STONE, outCount: 2 },
+            { id: 'grass',  label: '1x Bloc d\'Herbe', inItem: ITEMS.DIRT, inCount: 1, outItem: ITEMS.GRASS, outCount: 1 },
+            { id: 'apple',  label: '1x Pomme Sauvage', inItem: ITEMS.LEAVES, inCount: 2, outItem: ITEMS.APPLE, outCount: 1 }
+        ];
+
+        // --- 2. PACKS DE TEXTURES PROCÉDURAUX (16x16 PIXELS) ---
+        const TEXTURE_PACKS = {
+            vanilla: {
+                id: 'vanilla',
+                name: 'Vanilla Craft',
+                desc: 'Couleurs naturelles d\'herbe verte, terre riche et pierre grise authentique.',
+                sky: 0x78a7ff,
+                fog: 0xbcd4ff,
+                swatches: ['#5d9b37', '#866043', '#7d7d7d', '#9c7f4e']
+            },
+            bloxd: {
+                id: 'bloxd',
+                name: 'Bloxd Smooth',
+                desc: 'Textures épurées, lumineuses et très lisibles inspirées de Bloxd.io.',
+                sky: 0x60b5ff,
+                fog: 0xa8d8ff,
+                swatches: ['#58c947', '#a67449', '#9aa3ad', '#e3b86b']
+            },
+            autumn: {
+                id: 'autumn',
+                name: 'Automne & Terre Cuite',
+                desc: 'Forêts dorées, herbe ambrée et roches chaudes de fin d\'été.',
+                sky: 0xe8a86b,
+                fog: 0xf5cfa6,
+                swatches: ['#c98a2c', '#7a492e', '#8c786a', '#d95b26']
+            },
+            nordic: {
+                id: 'nordic',
+                name: 'Nuit Nordique',
+                desc: 'Toundra enneigée, bois de sapin sombre et pierre bleutée polaire.',
+                sky: 0x1e293b,
+                fog: 0x334155,
+                swatches: ['#e2e8f0', '#57463a', '#475569', '#2f4f4f']
+            }
+        };
+
+        // Atlas 4x4 (16 tuiles de 16x16 = 64x64)
+        // 0:GrassTop, 1:GrassSide, 2:Dirt, 3:Stone, 4:WoodSide, 5:WoodTop, 6:Leaves, 7:Sand
+        // 8:Water, 9:Planks, 10:Brick, 11:Glass, 12:Cobble, 13:CoalOre, 14:Bedrock, 15:AppleIcon
+        let atlasTexture = null;
+        let itemIcons = {};
+
+        function buildTextureAtlas(packId) {
+            const tile = 16;
+            const cols = 4;
+            const canvas = document.createElement('canvas');
+            canvas.width = tile * cols;
+            canvas.height = tile * cols;
+            const ctx = canvas.getContext('2d');
+
+            const rand = (x, y, s) => {
+                const n = Math.sin(x * 127.1 + y * 311.7 + s * 74.7) * 43758.5453;
+                return n - Math.floor(n);
+            };
+
+            const paintTile = (idx, fn) => {
+                const tc = document.createElement('canvas');
+                tc.width = tile;
+                tc.height = tile;
+                const tctx = tc.getContext('2d');
+                fn(tctx, rand);
+                ctx.drawImage(tc, (idx % cols) * tile, Math.floor(idx / cols) * tile);
+                itemIcons[idx] = tc.toDataURL();
+            };
+
+            const themes = {
+                vanilla: {
+                    grass: ['#5d9b37', '#4e872c', '#6ab040'],
+                    dirt: ['#866043', '#735036', '#966c4c'],
+                    stone: ['#7d7d7d', '#6e6e6e', '#8f8f8f'],
+                    wood: ['#664c31', '#523c26', '#785a3b'],
+                    woodTop: ['#b8945f', '#9c7b4b', '#785a3b'],
+                    leaves: ['#3b7a24', '#2e631b', '#4b9430'],
+                    sand: ['#dbd3a0', '#cfc691', '#e6deb0'],
+                    water: ['#2b65ec', '#2356cc', '#3b76f6'],
+                    planks: ['#9c7f4e', '#876d41', '#b0915b'],
+                    brick: ['#964b3b', '#7d3b2d', '#b5b5b5'],
+                    cobble: ['#6b6b6b', '#545454', '#858585'],
+                    bedrock: ['#292929', '#171717', '#424242']
+                },
+                bloxd: {
+                    grass: ['#58c947', '#4eb83e', '#69d957'],
+                    dirt: ['#a67449', '#96663e', '#b58255'],
+                    stone: ['#9aa3ad', '#8c959e', '#abb4bd'],
+                    wood: ['#7d5836', '#6b492b', '#8f6640'],
+                    woodTop: ['#d4aa6a', '#bf9658', '#8f6640'],
+                    leaves: ['#45b839', '#3aa32f', '#57cc4b'],
+                    sand: ['#f0e49e', '#e3d68d', '#f7ecb2'],
+                    water: ['#3898ff', '#2986eb', '#52a8ff'],
+                    planks: ['#cca05c', '#ba8f4e', '#deb26d'],
+                    brick: ['#c45845', '#ad4937', '#dcdcdc'],
+                    cobble: ['#848d96', '#727b85', '#9ba4ad'],
+                    bedrock: ['#333840', '#22262b', '#484f59']
+                },
+                autumn: {
+                    grass: ['#c98a2c', '#b57821', '#db9b3b'],
+                    dirt: ['#7a492e', '#693c24', '#8c5638'],
+                    stone: ['#8c786a', '#7a675a', '#9e897b'],
+                    wood: ['#593825', '#472b1b', '#6b4530'],
+                    woodTop: ['#c48c4d', '#ab763c', '#6b4530'],
+                    leaves: ['#d95b26', '#bf4919', '#eb7334'],
+                    sand: ['#e0c285', '#cfaea0', '#edd29a'],
+                    water: ['#2e6f73', '#23595c', '#3b868a'],
+                    planks: ['#b57338', '#9e602b', '#c78346'],
+                    brick: ['#8f3a29', '#752b1d', '#c7b8a1'],
+                    cobble: ['#786558', '#635246', '#8f7a6c'],
+                    bedrock: ['#2b211c', '#1c1512', '#40322b']
+                },
+                nordic: {
+                    grass: ['#eef2f6', '#dce3eb', '#ffffff'],
+                    dirt: ['#57463a', '#47382e', '#695547'],
+                    stone: ['#475569', '#394657', '#586880'],
+                    wood: ['#3b2d23', '#2b2018', '#4a392d'],
+                    woodTop: ['#947d66', '#7d6853', '#4a392d'],
+                    leaves: ['#2f4f4f', '#223b3b', '#dce3eb'],
+                    sand: ['#cbd5e1', '#b6c2d1', '#e2e8f0'],
+                    water: ['#1d4ed8', '#1e40af', '#3b82f6'],
+                    planks: ['#6e5844', '#5c4836', '#826a53'],
+                    brick: ['#64748b', '#475569', '#cbd5e1'],
+                    cobble: ['#3b4759', '#2c3645', '#505f75'],
+                    bedrock: ['#0f172a', '#090d16', '#1e293b']
+                }
+            };
+
+            const t = themes[packId] || themes.vanilla;
+            const isSmooth = packId === 'bloxd';
+
+            const noiseFill = (tctx, colsArr, seed) => {
+                for (let y = 0; y < 16; y++) {
+                    for (let x = 0; x < 16; x++) {
+                        if (isSmooth && (x === 0 || y === 0 || x === 15 || y === 15)) {
+                            tctx.fillStyle = colsArr[1];
+                        } else {
+                            const r = rand(x, y, seed);
+                            tctx.fillStyle = colsArr[Math.floor(r * colsArr.length)];
+                        }
+                        tctx.fillRect(x, y, 1, 1);
+                    }
+                }
+            };
+
+            // 0: Grass Top
+            paintTile(0, (c) => noiseFill(c, t.grass, 1));
+            // 1: Grass Side
+            paintTile(1, (c) => {
+                noiseFill(c, t.dirt, 2);
+                for (let x = 0; x < 16; x++) {
+                    const h = 3 + Math.floor(rand(x, 0, 3) * 3);
+                    for (let y = 0; y < h; y++) {
+                        c.fillStyle = t.grass[y % t.grass.length];
+                        c.fillRect(x, y, 1, 1);
+                    }
+                }
+            });
+            // 2: Dirt
+            paintTile(2, (c) => noiseFill(c, t.dirt, 4));
+            // 3: Stone
+            paintTile(3, (c) => noiseFill(c, t.stone, 5));
+            // 4: Wood Side
+            paintTile(4, (c) => {
+                for (let y = 0; y < 16; y++) {
+                    for (let x = 0; x < 16; x++) {
+                        const idx = (x % 4 === 0) ? 1 : (rand(x, y, 6) > 0.72 ? 2 : 0);
+                        c.fillStyle = t.wood[idx];
+                        c.fillRect(x, y, 1, 1);
+                    }
+                }
+            });
+            // 5: Wood Top
+            paintTile(5, (c) => {
+                for (let y = 0; y < 16; y++) {
+                    for (let x = 0; x < 16; x++) {
+                        const d = Math.floor(Math.max(Math.abs(x - 7.5), Math.abs(y - 7.5)));
+                        c.fillStyle = t.woodTop[d % t.woodTop.length];
+                        c.fillRect(x, y, 1, 1);
+                    }
+                }
+            });
+            // 6: Leaves
+            paintTile(6, (c) => {
+                for (let y = 0; y < 16; y++) {
+                    for (let x = 0; x < 16; x++) {
+                        const r = rand(x, y, 7);
+                        if (r > 0.2) {
+                            c.fillStyle = t.leaves[Math.floor(r * t.leaves.length)];
+                            c.fillRect(x, y, 1, 1);
+                        }
+                    }
+                }
+            });
+            // 7: Sand
+            paintTile(7, (c) => noiseFill(c, t.sand, 8));
+            // 8: Water
+            paintTile(8, (c) => {
+                c.globalAlpha = 0.8;
+                noiseFill(c, t.water, 9);
+                c.globalAlpha = 1;
+            });
+            // 9: Planks
+            paintTile(9, (c) => {
+                noiseFill(c, [t.planks[0], t.planks[2]], 10);
+                c.fillStyle = t.planks[1];
+                for (let y = 0; y < 16; y += 4) c.fillRect(0, y, 16, 1);
+                c.fillRect(6, 0, 1, 4);
+                c.fillRect(13, 4, 1, 4);
+                c.fillRect(3, 8, 1, 4);
+                c.fillRect(10, 12, 1, 4);
+            });
+            // 10: Brick
+            paintTile(10, (c) => {
+                noiseFill(c, [t.brick[0], t.brick[1]], 11);
+                c.fillStyle = t.brick[2];
+                for (let y = 0; y < 16; y += 4) {
+                    c.fillRect(0, y, 16, 1);
+                    const off = ((y / 4) % 2 === 0) ? 0 : 4;
+                    for (let x = off; x < 16; x += 8) c.fillRect(x, y, 1, 4);
+                }
+            });
+            // 11: Glass
+            paintTile(11, (c) => {
+                c.fillStyle = '#e2e8f0';
+                c.fillRect(0, 0, 16, 1);
+                c.fillRect(0, 15, 16, 1);
+                c.fillRect(0, 0, 1, 16);
+                c.fillRect(15, 0, 1, 16);
+                c.fillStyle = '#ffffff';
+                c.fillRect(3, 3, 2, 2);
+                c.fillRect(5, 5, 1, 1);
+                c.fillRect(11, 11, 2, 2);
+            });
+            // 12: Cobblestone
+            paintTile(12, (c) => {
+                noiseFill(c, t.cobble, 12);
+                c.fillStyle = t.cobble[1];
+                c.fillRect(2, 5, 12, 1);
+                c.fillRect(1, 11, 14, 1);
+                c.fillRect(7, 0, 1, 6);
+                c.fillRect(11, 5, 1, 7);
+                c.fillRect(5, 11, 1, 5);
+            });
+            // 13: Coal Ore
+            paintTile(13, (c) => {
+                noiseFill(c, t.stone, 5);
+                c.fillStyle = '#171717';
+                const spots = [[3,3],[4,3],[3,4],[10,5],[11,5],[10,6],[5,11],[6,11],[6,12],[12,12]];
+                spots.forEach(([sx, sy]) => c.fillRect(sx, sy, 1, 1));
+            });
+            // 14: Bedrock
+            paintTile(14, (c) => noiseFill(c, t.bedrock, 14));
+            // 15: Pomme (Icône 16x16 pixel art)
+            paintTile(15, (c) => {
+                c.fillStyle = '#5c3c24';
+                c.fillRect(7, 2, 2, 3);
+                c.fillStyle = '#4ade80';
+                c.fillRect(9, 2, 3, 2);
+                c.fillStyle = '#dc2626';
+                c.fillRect(4, 5, 8, 8);
+                c.fillRect(3, 6, 10, 6);
+                c.fillStyle = '#fca5a5';
+                c.fillRect(5, 6, 2, 2);
+            });
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.magFilter = THREE.NearestFilter;
+            tex.minFilter = THREE.NearestFilter;
+            tex.needsUpdate = true;
+            return tex;
+        }
+
+        function getTileIndex(itemId, faceDir = 0) {
+            switch (itemId) {
+                case ITEMS.GRASS: return faceDir === 2 ? 0 : (faceDir === 3 ? 2 : 1);
+                case ITEMS.DIRT: return 2;
+                case ITEMS.STONE: return 3;
+                case ITEMS.WOOD: return (faceDir === 2 || faceDir === 3) ? 5 : 4;
+                case ITEMS.LEAVES: return 6;
+                case ITEMS.SAND: return 7;
+                case ITEMS.WATER: return 8;
+                case ITEMS.PLANKS: return 9;
+                case ITEMS.BRICK: return 10;
+                case ITEMS.GLASS: return 11;
+                case ITEMS.COBBLESTONE: return 12;
+                case ITEMS.COAL_ORE: return 13;
+                case ITEMS.BEDROCK: return 14;
+                case ITEMS.APPLE: return 15;
+                default: return 3;
+            }
+        }
+
+        // --- 3. PARAMÈTRES SAUVEGARDÉS & CONTRÔLES ---
+        const DEFAULT_SETTINGS = {
+            gameMode: 'survival', // 'survival' ou 'creative'
+            texturePack: 'vanilla',
+            renderDistance: 3,
+            sensitivity: 1.0,
+            fog: true,
+            particles: true,
+            keybinds: {
+                forward: 'KeyW',
+                backward: 'KeyS',
+                left: 'KeyA',
+                right: 'KeyD',
+                jump: 'Space',
+                sprint: 'ControlLeft',
+                sneak: 'ShiftLeft',
+                fly: 'KeyF',
+                inventory: 'KeyE'
+            }
+        };
+
+        let settings = JSON.parse(localStorage.getItem('snipecraft_v2_settings')) || JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+
+        function saveSettings() {
+            localStorage.setItem('snipecraft_v2_settings', JSON.stringify(settings));
+        }
+
+        function formatKeyName(code) {
+            const names = {
+                'Space': 'ESPACE',
+                'ShiftLeft': 'SHIFT G',
+                'ShiftRight': 'SHIFT D',
+                'ControlLeft': 'CTRL G',
+                'ControlRight': 'CTRL D',
+                'AltLeft': 'ALT',
+                'KeyW': 'Z / W',
+                'KeyA': 'Q / A',
+                'KeyS': 'S',
+                'KeyD': 'D'
+            };
+            if (names[code]) return names[code];
+            if (code.startsWith('Key')) return code.slice(3);
+            if (code.startsWith('Digit')) return code.slice(5);
+            return code.toUpperCase();
+        }
+
+        // --- 4. GÉNÉRATION DU MONDE PAR CHUNKS ---
+        const CHUNK_SIZE = 16;
+        const CHUNK_HEIGHT = 48;
+        const WATER_LEVEL = 12;
+        let worldSeed = Math.floor(Math.random() * 99999);
+
+        const chunks = new Map();
+        const blockOverrides = new Map();
+
+        function noise2D(x, z) {
+            const X = Math.floor(x);
+            const Z = Math.floor(z);
+            const xf = x - X;
+            const zf = z - Z;
+            const hash = (ix, iz) => {
+                const n = Math.sin(ix * 127.1 + iz * 311.7 + worldSeed * 19.19) * 43758.5453;
+                return n - Math.floor(n);
+            };
+            const u = xf * xf * (3 - 2 * xf);
+            const v = zf * zf * (3 - 2 * zf);
+            return (hash(X, Z) * (1 - u) + hash(X + 1, Z) * u) * (1 - v) +
+                   (hash(X, Z + 1) * (1 - u) + hash(X + 1, Z + 1) * u) * v;
+        }
+
+        function getTerrainHeight(wx, wz) {
+            const n1 = noise2D(wx * 0.035, wz * 0.035);
+            const n2 = noise2D(wx * 0.09, wz * 0.09) * 0.35;
+            return Math.floor(8 + (n1 + n2) * 16);
+        }
+
+        function generateChunkData(cx, cz) {
+            const data = new Uint8Array(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE);
+            const set = (lx, y, lz, val) => {
+                if (lx >= 0 && lx < CHUNK_SIZE && y >= 0 && y < CHUNK_HEIGHT && lz >= 0 && lz < CHUNK_SIZE) {
+                    data[lx + lz * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE] = val;
+                }
+            };
+
+            for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+                for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+                    const wx = cx * CHUNK_SIZE + lx;
+                    const wz = cz * CHUNK_SIZE + lz;
+                    const h = getTerrainHeight(wx, wz);
+
+                    for (let y = 0; y < CHUNK_HEIGHT; y++) {
+                        if (y === 0) {
+                            set(lx, y, lz, ITEMS.BEDROCK);
+                        } else if (y < h - 3) {
+                            // Quelques veines de charbon dans la roche
+                            const oreRoll = Math.sin(wx * 31.7 + y * 57.3 + wz * 19.1 + worldSeed) * 43758.54;
+                            set(lx, y, lz, (oreRoll - Math.floor(oreRoll) > 0.94) ? ITEMS.COAL_ORE : ITEMS.STONE);
+                        } else if (y < h) {
+                            set(lx, y, lz, h <= WATER_LEVEL + 1 ? ITEMS.SAND : ITEMS.DIRT);
+                        } else if (y === h) {
+                            set(lx, y, lz, h <= WATER_LEVEL + 1 ? ITEMS.SAND : ITEMS.GRASS);
+                        } else if (y <= WATER_LEVEL) {
+                            set(lx, y, lz, ITEMS.WATER);
+                        }
+                    }
+
+                    // Arbres sur les plaines d'herbe
+                    if (h > WATER_LEVEL + 2 && lx >= 2 && lx <= 13 && lz >= 2 && lz <= 13) {
+                        const r = Math.sin(wx * 73.1 + wz * 29.3 + worldSeed) * 43758.54;
+                        const frac = r - Math.floor(r);
+                        if (frac > 0.982 && h + 6 < CHUNK_HEIGHT) {
+                            const trunkH = 4 + (Math.floor(frac * 100) % 2);
+                            for (let ty = 1; ty <= trunkH; ty++) set(lx, h + ty, lz, ITEMS.WOOD);
+                            for (let dy = trunkH - 1; dy <= trunkH + 1; dy++) {
+                                const rad = dy === trunkH + 1 ? 1 : 2;
+                                for (let dx = -rad; dx <= rad; dx++) {
+                                    for (let dz = -rad; dz <= rad; dz++) {
+                                        if (dx === 0 && dz === 0 && dy <= trunkH) continue;
+                                        if (Math.abs(dx) === rad && Math.abs(dz) === rad && dy === trunkH + 1) continue;
+                                        set(lx + dx, h + dy, lz + dz, ITEMS.LEAVES);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Réappliquer les modifications joueur
+            for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+                for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+                    const wx = cx * CHUNK_SIZE + lx;
+                    const wz = cz * CHUNK_SIZE + lz;
+                    for (let y = 0; y < CHUNK_HEIGHT; y++) {
+                        const ov = blockOverrides.get(`${wx},${y},${wz}`);
+                        if (ov !== undefined) set(lx, y, lz, ov);
+                    }
+                }
+            }
+            return data;
+        }
+
+        function getBlock(wx, y, wz) {
+            if (y < 0 || y >= CHUNK_HEIGHT) return ITEMS.AIR;
+            const ov = blockOverrides.get(`${wx},${y},${wz}`);
+            if (ov !== undefined) return ov;
+
+            const cx = Math.floor(wx / CHUNK_SIZE);
+            const cz = Math.floor(wz / CHUNK_SIZE);
+            const chunk = chunks.get(`${cx},${cz}`);
+            if (!chunk) return ITEMS.AIR;
+
+            const lx = ((wx % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+            const lz = ((wz % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+            return chunk.data[lx + lz * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE];
+        }
+
+        function setBlock(wx, y, wz, id) {
+            if (y < 1 || y >= CHUNK_HEIGHT) return false;
+            blockOverrides.set(`${wx},${y},${wz}`, id);
+
+            const cx = Math.floor(wx / CHUNK_SIZE);
+            const cz = Math.floor(wz / CHUNK_SIZE);
+            const lx = ((wx % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+            const lz = ((wz % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+
+            const chunk = chunks.get(`${cx},${cz}`);
+            if (chunk) {
+                chunk.data[lx + lz * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE] = id;
+                chunk.dirty = true;
+            }
+            if (lx === 0 && chunks.has(`${cx - 1},${cz}`)) chunks.get(`${cx - 1},${cz}`).dirty = true;
+            if (lx === CHUNK_SIZE - 1 && chunks.has(`${cx + 1},${cz}`)) chunks.get(`${cx + 1},${cz}`).dirty = true;
+            if (lz === 0 && chunks.has(`${cx},${cz - 1}`)) chunks.get(`${cx},${cz - 1}`).dirty = true;
+            if (lz === CHUNK_SIZE - 1 && chunks.has(`${cx},${cz + 1}`)) chunks.get(`${cx},${cz + 1}`).dirty = true;
+            return true;
+        }
+
+        // --- 5. RENDU THREE.JS & FACE CULLING ---
+        const canvas = document.getElementById('game-canvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 240);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.78));
+        const sun = new THREE.DirectionalLight(0xffffff, 0.45);
+        sun.position.set(50, 90, 35);
+        scene.add(sun);
+
+        atlasTexture = buildTextureAtlas(settings.texturePack);
+
+        const opaqueMat = new THREE.MeshLambertMaterial({ map: atlasTexture, vertexColors: true });
+        const transMat = new THREE.MeshLambertMaterial({
+            map: atlasTexture,
+            vertexColors: true,
+            transparent: true,
+            alphaTest: 0.15,
+            side: THREE.DoubleSide
+        });
+
+        const CUBE_FACES = [
+            { dir: [1, 0, 0],  shade: 0.85, c: [[1,0,1,0,0],[1,0,0,1,0],[1,1,0,1,1],[1,1,1,0,1]] },
+            { dir: [-1, 0, 0], shade: 0.85, c: [[0,0,0,0,0],[0,0,1,1,0],[0,1,1,1,1],[0,1,0,0,1]] },
+            { dir: [0, 1, 0],  shade: 1.00, c: [[0,1,1,0,0],[1,1,1,1,0],[1,1,0,1,1],[0,1,0,0,1]] },
+            { dir: [0, -1, 0], shade: 0.62, c: [[0,0,0,0,0],[1,0,0,1,0],[1,0,1,1,1],[0,0,1,0,1]] },
+            { dir: [0, 0, 1],  shade: 0.92, c: [[0,0,1,0,0],[1,0,1,1,0],[1,1,1,1,1],[0,1,1,0,1]] },
+            { dir: [0, 0, -1], shade: 0.92, c: [[1,0,0,0,0],[0,0,0,1,0],[0,1,0,1,1],[1,1,0,0,1]] }
+        ];
+
+        function rebuildChunkMesh(cx, cz, chunk) {
+            if (chunk.opaqueMesh) { scene.remove(chunk.opaqueMesh); chunk.opaqueMesh.geometry.dispose(); chunk.opaqueMesh = null; }
+            if (chunk.transMesh) { scene.remove(chunk.transMesh); chunk.transMesh.geometry.dispose(); chunk.transMesh = null; }
+
+            const oPos = [], oNorm = [], oUv = [], oCol = [], oIdx = [];
+            const tPos = [], tNorm = [], tUv = [], tCol = [], tIdx = [];
+            const step = 0.25;
+            const pad = 0.0012;
+
+            for (let y = 0; y < CHUNK_HEIGHT; y++) {
+                for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+                    for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+                        const block = chunk.data[lx + lz * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE];
+                        if (block === ITEMS.AIR) continue;
+
+                        const info = ITEM_DATA[block];
+                        const isTrans = !!info.transparent;
+                        const wx = cx * CHUNK_SIZE + lx;
+                        const wz = cz * CHUNK_SIZE + lz;
+
+                        for (let f = 0; f < 6; f++) {
+                            const face = CUBE_FACES[f];
+                            const nb = getBlock(wx + face.dir[0], y + face.dir[1], wz + face.dir[2]);
+                            if (nb !== ITEMS.AIR) {
+                                const nbInfo = ITEM_DATA[nb];
+                                if (!isTrans && !nbInfo.transparent) continue;
+                                if (isTrans && nb === block) continue;
+                            }
+
+                            const pos = isTrans ? tPos : oPos;
+                            const norm = isTrans ? tNorm : oNorm;
+                            const uv = isTrans ? tUv : oUv;
+                            const col = isTrans ? tCol : oCol;
+                            const idx = isTrans ? tIdx : oIdx;
+
+                            const vStart = pos.length / 3;
+                            const tileIdx = getTileIndex(block, f);
+                            const u0 = (tileIdx % 4) * step + pad;
+                            const v0 = 1.0 - (Math.floor(tileIdx / 4) + 1) * step + pad;
+                            const u1 = u0 + step - pad * 2;
+                            const v1 = v0 + step - pad * 2;
+                            const waterDrop = (block === ITEMS.WATER && f === 2) ? -0.14 : 0;
+
+                            for (let i = 0; i < 4; i++) {
+                                const corner = face.c[i];
+                                pos.push(wx + corner[0], y + corner[1] + (corner[1] === 1 ? waterDrop : 0), wz + corner[2]);
+                                norm.push(face.dir[0], face.dir[1], face.dir[2]);
+                                uv.push(corner[3] ? u1 : u0, corner[4] ? v1 : v0);
+                                col.push(face.shade, face.shade, face.shade);
+                            }
+                            idx.push(vStart, vStart + 1, vStart + 2, vStart, vStart + 2, vStart + 3);
+                        }
+                    }
+                }
+            }
+
+            if (oPos.length > 0) {
+                const geo = new THREE.BufferGeometry();
+                geo.setAttribute('position', new THREE.Float32BufferAttribute(oPos, 3));
+                geo.setAttribute('normal', new THREE.Float32BufferAttribute(oNorm, 3));
+                geo.setAttribute('uv', new THREE.Float32BufferAttribute(oUv, 2));
+                geo.setAttribute('color', new THREE.Float32BufferAttribute(oCol, 3));
+                geo.setIndex(oIdx);
+                chunk.opaqueMesh = new THREE.Mesh(geo, opaqueMat);
+                scene.add(chunk.opaqueMesh);
+            }
+
+            if (tPos.length > 0) {
+                const geo = new THREE.BufferGeometry();
+                geo.setAttribute('position', new THREE.Float32BufferAttribute(tPos, 3));
+                geo.setAttribute('normal', new THREE.Float32BufferAttribute(tNorm, 3));
+                geo.setAttribute('uv', new THREE.Float32BufferAttribute(tUv, 2));
+                geo.setAttribute('color', new THREE.Float32BufferAttribute(tCol, 3));
+                geo.setIndex(tIdx);
+                chunk.transMesh = new THREE.Mesh(geo, transMat);
+                scene.add(chunk.transMesh);
+            }
+            chunk.dirty = false;
+        }
+
+        function updateWorldChunks(px, pz, immediate = false) {
+            const pcx = Math.floor(px / CHUNK_SIZE);
+            const pcz = Math.floor(pz / CHUNK_SIZE);
+            const rd = settings.renderDistance;
+            const needed = new Set();
+            const queue = [];
+
+            for (let dx = -rd; dx <= rd; dx++) {
+                for (let dz = -rd; dz <= rd; dz++) {
+                    if (dx * dx + dz * dz > rd * rd + 1) continue;
+                    const cx = pcx + dx;
+                    const cz = pcz + dz;
+                    const key = `${cx},${cz}`;
+                    needed.add(key);
+                    if (!chunks.has(key)) queue.push({ cx, cz, d: dx * dx + dz * dz });
+                }
+            }
+
+            for (const [key, ch] of chunks.entries()) {
+                if (!needed.has(key)) {
+                    if (ch.opaqueMesh) { scene.remove(ch.opaqueMesh); ch.opaqueMesh.geometry.dispose(); }
+                    if (ch.transMesh) { scene.remove(ch.transMesh); ch.transMesh.geometry.dispose(); }
+                    chunks.delete(key);
+                }
+            }
+
+            queue.sort((a, b) => a.d - b.d);
+            let built = 0;
+            const limit = immediate ? 999 : 2;
+
+            for (const item of queue) {
+                if (built >= limit) break;
+                const data = generateChunkData(item.cx, item.cz);
+                const ch = { cx: item.cx, cz: item.cz, data, opaqueMesh: null, transMesh: null, dirty: true };
+                chunks.set(`${item.cx},${item.cz}`, ch);
+                rebuildChunkMesh(item.cx, item.cz, ch);
+                built++;
+            }
+
+            for (const ch of chunks.values()) {
+                if (ch.dirty) {
+                    rebuildChunkMesh(ch.cx, ch.cz, ch);
+                    if (!immediate) break;
+                }
+            }
+            document.getElementById('hud-chunks').textContent = chunks.size;
+        }
+
+        // --- 6. VISUEL DE SÉLECTION & FISSURES DE MINAGE ---
+        const outlineGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.005, 1.005, 1.005));
+        const outlineBox = new THREE.LineSegments(outlineGeo, new THREE.LineBasicMaterial({ color: 0x141414 }));
+        outlineBox.visible = false;
+        scene.add(outlineBox);
+
+        // Cube semi-transparent de fissures qui grandit pendant le minage en Survie
+        const crackCanvas = document.createElement('canvas');
+        crackCanvas.width = 16; crackCanvas.height = 16;
+        const crackCtx = crackCanvas.getContext('2d');
+        const crackTex = new THREE.CanvasTexture(crackCanvas);
+        crackTex.magFilter = THREE.NearestFilter;
+
+        const crackMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(1.012, 1.012, 1.012),
+            new THREE.MeshBasicMaterial({ map: crackTex, transparent: true, depthWrite: false })
+        );
+        crackMesh.visible = false;
+        scene.add(crackMesh);
+
+        function updateCrackTexture(stage) {
+            crackCtx.clearRect(0, 0, 16, 16);
+            if (stage <= 0) { crackTex.needsUpdate = true; return; }
+            crackCtx.fillStyle = 'rgba(15, 15, 15, 0.75)';
+            const lines = [
+                [7,7,2,2], [6,6,1,3], [9,8,2,2], [5,9,3,1], [8,4,1,3],
+                [4,4,2,1], [11,10,2,2], [3,12,3,1], [10,3,2,1], [2,7,2,2]
+            ];
+            const count = Math.min(lines.length, Math.ceil(stage * lines.length));
+            for (let i = 0; i < count; i++) {
+                const [x, y, w, h] = lines[i];
+                crackCtx.fillRect(x, y, w, h);
+            }
+            crackTex.needsUpdate = true;
+        }
+
+        // Particules de blocs cassés
+        const particles = [];
+        const pGeo = new THREE.BoxGeometry(0.15, 0.15, 0.15);
+
+        function spawnParticles(wx, wy, wz, itemId) {
+            if (!settings.particles) return;
+            const cols = {
+                [ITEMS.GRASS]: 0x5d9b37, [ITEMS.DIRT]: 0x866043, [ITEMS.STONE]: 0x7d7d7d,
+                [ITEMS.WOOD]: 0x664c31, [ITEMS.LEAVES]: 0x3b7a24, [ITEMS.SAND]: 0xdbd3a0,
+                [ITEMS.PLANKS]: 0x9c7f4e, [ITEMS.BRICK]: 0x964b3b, [ITEMS.GLASS]: 0xe2e8f0,
+                [ITEMS.COBBLESTONE]: 0x6b6b6b, [ITEMS.COAL_ORE]: 0x262626
+            };
+            const mat = new THREE.MeshBasicMaterial({ color: cols[itemId] || 0x9ca3af });
+            for (let i = 0; i < 9; i++) {
+                const m = new THREE.Mesh(pGeo, mat);
+                m.position.set(wx + 0.2 + Math.random() * 0.6, wy + 0.2 + Math.random() * 0.6, wz + 0.2 + Math.random() * 0.6);
+                scene.add(m);
+                particles.push({
+                    mesh: m,
+                    vel: new THREE.Vector3((Math.random() - 0.5) * 4, Math.random() * 3.8 + 1, (Math.random() - 0.5) * 4),
+                    life: 0.45
+                });
+            }
+        }
+
+        function updateParticles(dt) {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.life -= dt;
+                if (p.life <= 0) {
+                    scene.remove(p.mesh);
+                    particles.splice(i, 1);
+                } else {
+                    p.vel.y -= 15 * dt;
+                    p.mesh.position.addScaledVector(p.vel, dt);
+                    p.mesh.scale.setScalar(Math.max(0.1, p.life * 2));
+                }
+            }
+        }
+
+        // --- 7. JOUEUR, SURVIE (VIE, FAIM, INVENTAIRE) & CRÉATIF ---
+        const player = {
+            pos: new THREE.Vector3(8, 28, 8),
+            vel: new THREE.Vector3(0, 0, 0),
+            yaw: 0,
+            pitch: 0,
+            width: 0.6,
+            height: 1.75,
+            eyeHeight: 1.58,
+            onGround: false,
+            inWater: false,
+            isFlying: false,
+            lastSpaceTime: 0,
+            // Statistiques Survie
+            health: 20,      // Max 20 (10 cœurs)
+            hunger: 20,      // Max 20 (10 gigots)
+            hungerTimer: 0,
+            regenTimer: 0,
+            highestY: 28,
+            isDead: false
+        };
+
+        // Inventaire : 36 slots (0..8 = Hotbar, 9..35 = Sac à dos)
+        // Chaque slot est null ou { id: ITEMS.XXX, count: 1..64 }
+        let survivalInventory = new Array(36).fill(null);
+        let creativeHotbar = [
+            ITEMS.GRASS, ITEMS.DIRT, ITEMS.COBBLESTONE, ITEMS.PLANKS,
+            ITEMS.WOOD, ITEMS.BRICK, ITEMS.GLASS, ITEMS.SAND, ITEMS.APPLE
+        ];
+        let activeSlot = 0;
+        let selectedSwapSlot = null;
+
+        function resetSurvivalInventory() {
+            survivalInventory = new Array(36).fill(null);
+            // Kit de départ léger en survie
+            survivalInventory[0] = { id: ITEMS.WOOD, count: 4 };
+            survivalInventory[1] = { id: ITEMS.APPLE, count: 3 };
+        }
+
+        // Ajouter un objet récolté dans l'inventaire Survie (empilement jusqu'à 64)
+        function addToSurvivalInventory(itemId, amount = 1) {
+            if (!itemId) return;
+            let remaining = amount;
+            // 1. Compléter les piles existantes
+            for (let i = 0; i < 36 && remaining > 0; i++) {
+                const slot = survivalInventory[i];
+                if (slot && slot.id === itemId && slot.count < 64) {
+                    const space = 64 - slot.count;
+                    const add = Math.min(space, remaining);
+                    slot.count += add;
+                    remaining -= add;
+                }
+            }
+            // 2. Placer dans un emplacement vide
+            for (let i = 0; i < 36 && remaining > 0; i++) {
+                if (!survivalInventory[i]) {
+                    const add = Math.min(64, remaining);
+                    survivalInventory[i] = { id: itemId, count: add };
+                    remaining -= add;
+                }
+            }
+            renderHotbar();
+        }
+
+        function countItemInInventory(itemId) {
+            let total = 0;
+            for (const slot of survivalInventory) {
+                if (slot && slot.id === itemId) total += slot.count;
+            }
+            return total;
+        }
+
+        function consumeItemFromInventory(itemId, amount) {
+            let toRemove = amount;
+            for (let i = 35; i >= 0 && toRemove > 0; i--) {
+                const slot = survivalInventory[i];
+                if (slot && slot.id === itemId) {
+                    const take = Math.min(slot.count, toRemove);
+                    slot.count -= take;
+                    toRemove -= take;
+                    if (slot.count <= 0) survivalInventory[i] = null;
+                }
+            }
+        }
+
+        function damagePlayer(amount, reason = 'Vous avez succombé à vos blessures.') {
+            if (settings.gameMode !== 'survival' || player.isDead) return;
+            player.health = Math.max(0, player.health - amount);
+            renderSurvivalBars();
+
+            // Flash rouge écran
+            const flash = document.getElementById('damage-flash');
+            flash.style.opacity = '1';
+            setTimeout(() => { flash.style.opacity = '0'; }, 160);
+
+            if (player.health <= 0) {
+                player.isDead = true;
+                isPlaying = false;
+                if (document.pointerLockElement === canvas) document.exitPointerLock();
+                document.getElementById('death-reason').textContent = reason;
+                document.getElementById('death-screen').classList.remove('hidden');
+            }
+        }
+
+        function spawnPlayer() {
+            const sx = 8, sz = 8;
+            updateWorldChunks(sx, sz, true);
+            let sy = CHUNK_HEIGHT - 2;
+            for (let y = CHUNK_HEIGHT - 1; y >= 1; y--) {
+                const b = getBlock(sx, y, sz);
+                if (b !== ITEMS.AIR && b !== ITEMS.WATER) {
+                    sy = y + 1.5;
+                    break;
+                }
+            }
+            player.pos.set(sx + 0.5, sy, sz + 0.5);
+            player.vel.set(0, 0, 0);
+            player.highestY = sy;
+            player.health = 20;
+            player.hunger = 20;
+            player.isDead = false;
+            player.isFlying = false;
+            renderSurvivalBars();
+        }
+
+        // --- 8. PHYSIQUE & RAYCAST ---
+        function checkCollision(pos) {
+            const hw = player.width / 2;
+            const minX = Math.floor(pos.x - hw), maxX = Math.floor(pos.x + hw);
+            const minY = Math.floor(pos.y), maxY = Math.floor(pos.y + player.height);
+            const minZ = Math.floor(pos.z - hw), maxZ = Math.floor(pos.z + hw);
+
+            for (let x = minX; x <= maxX; x++) {
+                for (let y = minY; y <= maxY; y++) {
+                    for (let z = minZ; z <= maxZ; z++) {
+                        const b = getBlock(x, y, z);
+                        if (b !== ITEMS.AIR && ITEM_DATA[b].solid) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function raycastVoxel(maxDist = 6.0) {
+            const origin = new THREE.Vector3(player.pos.x, player.pos.y + player.eyeHeight, player.pos.z);
+            const dir = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(player.pitch, player.yaw, 0, 'YXZ')).normalize();
+
+            let x = Math.floor(origin.x), y = Math.floor(origin.y), z = Math.floor(origin.z);
+            const stepX = dir.x > 0 ? 1 : -1, stepY = dir.y > 0 ? 1 : -1, stepZ = dir.z > 0 ? 1 : -1;
+            const tDeltaX = dir.x !== 0 ? Math.abs(1 / dir.x) : Infinity;
+            const tDeltaY = dir.y !== 0 ? Math.abs(1 / dir.y) : Infinity;
+            const tDeltaZ = dir.z !== 0 ? Math.abs(1 / dir.z) : Infinity;
+
+            let tMaxX = dir.x > 0 ? (x + 1 - origin.x) * tDeltaX : (origin.x - x) * tDeltaX;
+            let tMaxY = dir.y > 0 ? (y + 1 - origin.y) * tDeltaY : (origin.y - y) * tDeltaY;
+            let tMaxZ = dir.z > 0 ? (z + 1 - origin.z) * tDeltaZ : (origin.z - z) * tDeltaZ;
+            let normal = [0, 0, 0];
+
+            for (let i = 0; i < 36; i++) {
+                const block = getBlock(x, y, z);
+                if (block !== ITEMS.AIR && block !== ITEMS.WATER) {
+                    return { x, y, z, normal, block };
+                }
+                if (tMaxX < tMaxY) {
+                    if (tMaxX < tMaxZ) {
+                        if (tMaxX > maxDist) break;
+                        x += stepX; tMaxX += tDeltaX; normal = [-stepX, 0, 0];
+                    } else {
+                        if (tMaxZ > maxDist) break;
+                        z += stepZ; tMaxZ += tDeltaZ; normal = [0, 0, -stepZ];
+                    }
+                } else {
+                    if (tMaxY < tMaxZ) {
+                        if (tMaxY > maxDist) break;
+                        y += stepY; tMaxY += tDeltaY; normal = [0, -stepY, 0];
+                    } else {
+                        if (tMaxZ > maxDist) break;
+                        z += stepZ; tMaxZ += tDeltaZ; normal = [0, 0, -stepZ];
+                    }
+                }
+            }
+            return null;
+        }
+
+        // --- 9. CONTRÔLES & MINAGE PROGRESSIF ---
+        const keysDown = new Set();
+        let isPlaying = false;
+        let isInventoryOpen = false;
+        let isMouseDownLeft = false;
+        let miningTarget = null; // { x, y, z, progress, hardness, block }
+        let listeningKeyAction = null;
+
+        function resetMining() {
+            miningTarget = null;
+            crackMesh.visible = false;
+            document.getElementById('mining-bar-container').classList.add('hidden');
+        }
+
+        function breakBlockAndReward(wx, wy, wz, blockId) {
+            if (setBlock(wx, wy, wz, ITEMS.AIR)) {
+                spawnParticles(wx, wy, wz, blockId);
+                if (settings.gameMode === 'survival') {
+                    const info = ITEM_DATA[blockId];
+                    if (info.drop) {
+                        if (info.dropChance === undefined || Math.random() < info.dropChance) {
+                            addToSurvivalInventory(info.drop, 1);
+                        }
+                    }
+                }
+            }
+        }
+
+        function useRightClickAction() {
+            // 1. Vérifier si on tient une pomme en Survie pour la manger
+            if (settings.gameMode === 'survival') {
+                const held = survivalInventory[activeSlot];
+                if (held && held.id === ITEMS.APPLE) {
+                    if (player.hunger < 20 || player.health < 20) {
+                        player.hunger = Math.min(20, player.hunger + 4);
+                        player.health = Math.min(20, player.health + 2);
+                        held.count--;
+                        if (held.count <= 0) survivalInventory[activeSlot] = null;
+                        renderSurvivalBars();
+                        renderHotbar();
+                        showToast('Miam ! +4 Faim, +1 Cœur');
+                        return;
+                    }
+                }
+            }
+
+            // 2. Sinon poser le bloc sélectionné
+            const hit = raycastVoxel();
+            if (!hit) return;
+
+            let itemIdToPlace = null;
+            if (settings.gameMode === 'creative') {
+                itemIdToPlace = creativeHotbar[activeSlot];
+            } else {
+                const held = survivalInventory[activeSlot];
+                if (held) itemIdToPlace = held.id;
+            }
+
+            if (!itemIdToPlace || !ITEM_DATA[itemIdToPlace].placeable) return;
+
+            const px = hit.x + hit.normal[0];
+            const py = hit.y + hit.normal[1];
+            const pz = hit.z + hit.normal[2];
+
+            // Empêcher de poser un bloc dans le corps du joueur
+            const hw = player.width / 2;
+            const overlapX = (player.pos.x + hw > px) && (player.pos.x - hw < px + 1);
+            const overlapY = (player.pos.y + player.height > py) && (player.pos.y < py + 1);
+            const overlapZ = (player.pos.z + hw > pz) && (player.pos.z - hw < pz + 1);
+
+            if (!(overlapX && overlapY && overlapZ)) {
+                if (setBlock(px, py, pz, itemIdToPlace)) {
+                    if (settings.gameMode === 'survival') {
+                        const held = survivalInventory[activeSlot];
+                        held.count--;
+                        if (held.count <= 0) survivalInventory[activeSlot] = null;
+                        renderHotbar();
+                    }
+                }
+            }
+        }
+
+        // Souris & PointerLock
+        canvas.addEventListener('mousedown', (e) => {
+            if (!isPlaying || isInventoryOpen || player.isDead) return;
+            if (document.pointerLockElement !== canvas) {
+                canvas.requestPointerLock();
+                return;
+            }
+
+            if (e.button === 0) {
+                isMouseDownLeft = true;
+                const hit = raycastVoxel();
+                if (hit) {
+                    if (settings.gameMode === 'creative') {
+                        // Cassage instantané en Créatif
+                        breakBlockAndReward(hit.x, hit.y, hit.z, hit.block);
+                    } else {
+                        const hard = ITEM_DATA[hit.block].hardness;
+                        if (hard !== Infinity) {
+                            miningTarget = { x: hit.x, y: hit.y, z: hit.z, progress: 0, hardness: hard, block: hit.block };
+                        }
+                    }
+                }
+            } else if (e.button === 2) {
+                useRightClickAction();
+            }
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            if (e.button === 0) {
+                isMouseDownLeft = false;
+                resetMining();
+            }
+        });
+
+        window.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isPlaying || isInventoryOpen || document.pointerLockElement !== canvas) return;
+            const sens = 0.0022 * settings.sensitivity;
+            player.yaw -= e.movementX * sens;
+            player.pitch -= e.movementY * sens;
+            player.pitch = Math.max(-Math.PI / 2 + 0.02, Math.min(Math.PI / 2 - 0.02, player.pitch));
+        });
+
+        document.addEventListener('pointerlockchange', () => {
+            if (document.pointerLockElement !== canvas && isPlaying && !isInventoryOpen && !player.isDead) {
+                pauseGame();
+            }
+        });
+
+        window.addEventListener('wheel', (e) => {
+            if (!isPlaying || isInventoryOpen) return;
+            activeSlot = (activeSlot + (e.deltaY > 0 ? 1 : 8)) % 9;
+            renderHotbar();
+        });
+
+        // Clavier
+        window.addEventListener('keydown', (e) => {
+            if (listeningKeyAction) {
+                e.preventDefault();
+                if (e.code !== 'Escape') {
+                    settings.keybinds[listeningKeyAction] = e.code;
+                    saveSettings();
+                    showToast(`Touche assignée : ${formatKeyName(e.code)}`);
+                }
+                listeningKeyAction = null;
+                renderKeybinds();
+                updateControlLabels();
+                return;
+            }
+
+            if (e.code === 'Escape') {
+                if (isInventoryOpen) {
+                    toggleInventory(false);
+                } else if (isPlaying) {
+                    pauseGame();
+                } else if (!player.isDead) {
+                    startGame();
+                }
+                return;
+            }
+
+            if (e.code === settings.keybinds.inventory && isPlaying && !player.isDead) {
+                e.preventDefault();
+                toggleInventory();
+                return;
+            }
+
+            if (!isPlaying || isInventoryOpen || player.isDead) return;
+            keysDown.add(e.code);
+
+            if (e.code.startsWith('Digit')) {
+                const n = parseInt(e.code.slice(5), 10);
+                if (n >= 1 && n <= 9) {
+                    activeSlot = n - 1;
+                    renderHotbar();
+                }
+            }
+
+            // Vol uniquement autorisé en mode Créatif
+            if (e.code === settings.keybinds.fly && settings.gameMode === 'creative') {
+                player.isFlying = !player.isFlying;
+                player.vel.y = 0;
+                showToast(player.isFlying ? 'Vol Créatif : ACTIVÉ' : 'Vol Créatif : DÉSACTIVÉ');
+            }
+
+            if (e.code === settings.keybinds.jump && !e.repeat && settings.gameMode === 'creative') {
+                const now = performance.now();
+                if (now - player.lastSpaceTime < 260) {
+                    player.isFlying = !player.isFlying;
+                    player.vel.y = 0;
+                    showToast(player.isFlying ? 'Vol Créatif : ACTIVÉ' : 'Vol Créatif : DÉSACTIVÉ');
+                }
+                player.lastSpaceTime = now;
+            }
+        });
+
+        window.addEventListener('keyup', (e) => keysDown.delete(e.code));
+
+        // --- 10. MISE À JOUR PHYSIQUE, MINAGE & SURVIE ---
+        function updateSimulation(dt) {
+            const kb = settings.keybinds;
+            let fwd = 0, str = 0;
+            if (keysDown.has(kb.forward)) fwd += 1;
+            if (keysDown.has(kb.backward)) fwd -= 1;
+            if (keysDown.has(kb.right)) str += 1;
+            if (keysDown.has(kb.left)) str -= 1;
+
+            const isSprinting = keysDown.has(kb.sprint) && fwd > 0 && (settings.gameMode === 'creative' || player.hunger > 6);
+            const isSneaking = keysDown.has(kb.sneak);
+            let speed = player.isFlying ? 11.5 : 5.2;
+            if (isSprinting) speed *= 1.48;
+            if (isSneaking && !player.isFlying) speed *= 0.45;
+
+            const fVec = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+            const rVec = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
+            const wish = new THREE.Vector3().addScaledVector(fVec, fwd).addScaledVector(rVec, str);
+            if (wish.lengthSq() > 0) wish.normalize();
+
+            player.vel.x = wish.x * speed;
+            player.vel.z = wish.z * speed;
+
+            // Vérifier si le joueur est dans l'eau
+            const feetBlock = getBlock(Math.floor(player.pos.x), Math.floor(player.pos.y + 0.4), Math.floor(player.pos.z));
+            player.inWater = (feetBlock === ITEMS.WATER);
+
+            if (player.isFlying && settings.gameMode === 'creative') {
+                player.vel.y = 0;
+                if (keysDown.has(kb.jump)) player.vel.y += 9.5;
+                if (isSneaking) player.vel.y -= 9.5;
+                player.highestY = player.pos.y;
+            } else if (player.inWater) {
+                player.vel.y -= 6.0 * dt;
+                player.vel.y = Math.max(-3.5, player.vel.y);
+                if (keysDown.has(kb.jump)) player.vel.y = 4.5;
+                player.highestY = player.pos.y;
+            } else {
+                player.vel.y -= 26.0 * dt;
+                if (player.vel.y < -36) player.vel.y = -36;
+                if (keysDown.has(kb.jump) && player.onGround) {
+                    player.vel.y = 8.6;
+                    player.onGround = false;
+                }
+            }
+
+            // Déplacements AABB séparés par axe
+            const nextX = player.pos.clone(); nextX.x += player.vel.x * dt;
+            if (!checkCollision(nextX)) player.pos.x = nextX.x;
+
+            const nextZ = player.pos.clone(); nextZ.z += player.vel.z * dt;
+            if (!checkCollision(nextZ)) player.pos.z = nextZ.z;
+
+            const nextY = player.pos.clone(); nextY.y += player.vel.y * dt;
+            if (!checkCollision(nextY)) {
+                player.pos.y = nextY.y;
+                player.onGround = false;
+                if (player.pos.y > player.highestY) player.highestY = player.pos.y;
+            } else {
+                if (player.vel.y < 0) {
+                    // Calcul des dégâts de chute en mode Survie
+                    if (!player.onGround && settings.gameMode === 'survival' && !player.inWater) {
+                        const fallDist = player.highestY - player.pos.y;
+                        if (fallDist > 3.6) {
+                            const dmg = Math.floor(fallDist - 3);
+                            if (dmg > 0) damagePlayer(dmg, 'Vous avez fait une chute mortelle.');
+                        }
+                    }
+                    player.onGround = true;
+                    player.highestY = player.pos.y;
+                }
+                player.vel.y = 0;
+            }
+
+            if (player.pos.y < -8) spawnPlayer();
+
+            // Gestion de la faim & régénération en mode Survie
+            if (settings.gameMode === 'survival' && !player.isDead) {
+                const moving = wish.lengthSq() > 0;
+                player.hungerTimer += dt * (isSprinting ? 2.4 : (moving ? 1.0 : 0.25));
+                if (player.hungerTimer >= 16) {
+                    player.hungerTimer = 0;
+                    if (player.hunger > 0) {
+                        player.hunger--;
+                        renderSurvivalBars();
+                    }
+                }
+
+                // Régénération naturelle si faim >= 16, ou dégâts de famine si faim === 0
+                player.regenTimer += dt;
+                if (player.hunger >= 16 && player.health < 20 && player.regenTimer >= 3.5) {
+                    player.regenTimer = 0;
+                    player.health = Math.min(20, player.health + 1);
+                    renderSurvivalBars();
+                } else if (player.hunger === 0 && player.regenTimer >= 4.0) {
+                    player.regenTimer = 0;
+                    damagePlayer(1, 'Vous êtes mort de faim.');
+                }
+            }
+
+            // Caméra (légèrement abaissée si accroupi)
+            const eyeOff = (isSneaking && !player.isFlying) ? player.eyeHeight - 0.22 : player.eyeHeight;
+            camera.position.set(player.pos.x, player.pos.y + eyeOff, player.pos.z);
+            camera.rotation.order = 'YXZ';
+            camera.rotation.y = player.yaw;
+            camera.rotation.x = player.pitch;
+
+            // Raycast & Minage progressif en Survie
+            const hit = raycastVoxel();
+            if (hit) {
+                outlineBox.visible = true;
+                outlineBox.position.set(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5);
+
+                if (isMouseDownLeft && settings.gameMode === 'survival') {
+                    if (!miningTarget || miningTarget.x !== hit.x || miningTarget.y !== hit.y || miningTarget.z !== hit.z) {
+                        const hard = ITEM_DATA[hit.block].hardness;
+                        miningTarget = hard !== Infinity ? { x: hit.x, y: hit.y, z: hit.z, progress: 0, hardness: hard, block: hit.block } : null;
+                    }
+                    if (miningTarget) {
+                        miningTarget.progress += dt;
+                        const ratio = Math.min(1, miningTarget.progress / miningTarget.hardness);
+                        crackMesh.visible = true;
+                        crackMesh.position.set(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5);
+                        updateCrackTexture(ratio);
+
+                        const barCont = document.getElementById('mining-bar-container');
+                        barCont.classList.remove('hidden');
+                        document.getElementById('mining-bar-fill').style.width = `${Math.round(ratio * 100)}%`;
+
+                        if (miningTarget.progress >= miningTarget.hardness) {
+                            breakBlockAndReward(hit.x, hit.y, hit.z, hit.block);
+                            resetMining();
+                        }
+                    }
+                } else {
+                    resetMining();
+                }
+            } else {
+                outlineBox.visible = false;
+                resetMining();
+            }
+        }
+
+        // --- 11. INTERFACE UTILISATEUR (CŒURS, FAIM, HOTBAR, INVENTAIRE, CRAFT) ---
+        function renderSurvivalBars() {
+            const survBars = document.getElementById('survival-bars');
+            if (settings.gameMode !== 'survival') {
+                survBars.classList.add('hidden');
+                return;
+            }
+            survBars.classList.remove('hidden');
+
+            const heartsEl = document.getElementById('hearts-container');
+            const hungerEl = document.getElementById('hunger-container');
+            heartsEl.innerHTML = '';
+            hungerEl.innerHTML = '';
+
+            // 10 Cœurs (2 PV par cœur)
+            for (let i = 0; i < 10; i++) {
+                const hp = player.health - i * 2;
+                const fill = hp >= 2 ? '#ef4444' : (hp === 1 ? '#f87171' : '#292524');
+                const half = hp === 1;
+                heartsEl.innerHTML += `
+                    <svg width="18" height="18" viewBox="0 0 9 9" style="shape-rendering:crispEdges">
+                        <path d="M1 1h2v1h1v1h1V2h1V1h2v1h1v3H8v1H7v1H6v1H5v1H4V8H3V7H2V6H1V5H0V2h1V1z" fill="#141414"/>
+                        <path d="M1 2h2v1h1v1h1V3h1V2h2v3H7v1H6v1H5v1H4V7H3V6H2V5H1V2z" fill="${half ? '#292524' : fill}"/>
+                        ${half ? '<path d="M1 2h2v1h1v5H4V7H3V6H2V5H1V2z" fill="#ef4444"/>' : ''}
+                        ${hp > 0 ? '<rect x="2" y="3" width="1" height="1" fill="#fca5a5"/>' : ''}
+                    </svg>`;
+            }
+
+            // 10 Gigots de faim (2 points par gigot)
+            for (let i = 0; i < 10; i++) {
+                const fp = player.hunger - i * 2;
+                const fill = fp >= 2 ? '#d97706' : (fp === 1 ? '#f59e0b' : '#292524');
+                hungerEl.innerHTML += `
+                    <svg width="18" height="18" viewBox="0 0 9 9" style="shape-rendering:crispEdges">
+                        <path d="M4 1h3v1h1v3H7v1H5v1H3v1H1V6h1V4h1V2h1V1z" fill="#141414"/>
+                        <path d="M4 2h3v3H6v1H4V4H3V3h1V2z" fill="${fill}"/>
+                        <rect x="2" y="6" width="1" height="1" fill="#f5f5f4"/>
+                    </svg>`;
+            }
+        }
+
+        function createSlotElement(itemId, count, isSelected, onClick) {
+            const slot = document.createElement('div');
+            slot.className = `mc-slot ${isSelected ? 'selected' : ''}`;
+            slot.onclick = onClick;
+
+            if (itemId && itemId !== ITEMS.AIR) {
+                const img = document.createElement('img');
+                img.src = itemIcons[getTileIndex(itemId, 0)];
+                img.className = 'w-8 h-8 pointer-events-none';
+                img.style.imageRendering = 'pixelated';
+                slot.appendChild(img);
+
+                if (count !== null && count > 1) {
+                    const badge = document.createElement('span');
+                    badge.textContent = count;
+                    badge.className = 'absolute bottom-0.5 right-1 text-[11px] font-bold text-white mc-shadow pointer-events-none';
+                    slot.appendChild(badge);
+                }
+            }
+            return slot;
+        }
+
+        function renderHotbar() {
+            const hb = document.getElementById('hotbar');
+            hb.innerHTML = '';
+
+            for (let i = 0; i < 9; i++) {
+                let itemId = null, count = null;
+                if (settings.gameMode === 'creative') {
+                    itemId = creativeHotbar[i];
+                } else if (survivalInventory[i]) {
+                    itemId = survivalInventory[i].id;
+                    count = survivalInventory[i].count;
+                }
+
+                const slotEl = createSlotElement(itemId, count, i === activeSlot, () => {
+                    activeSlot = i;
+                    renderHotbar();
+                });
+
+                const num = document.createElement('span');
+                num.textContent = i + 1;
+                num.className = 'absolute top-0.5 left-1 text-[9px] text-stone-200 mc-shadow pointer-events-none';
+                slotEl.appendChild(num);
+                hb.appendChild(slotEl);
+            }
+
+            // Mise à jour du nom de l'item en main
+            let heldId = settings.gameMode === 'creative' ? creativeHotbar[activeSlot] : (survivalInventory[activeSlot]?.id || null);
+            document.getElementById('held-item-name').textContent = heldId ? ITEM_DATA[heldId].name : 'Main vide';
+        }
+
+        function renderInventoryModal() {
+            const isCreative = settings.gameMode === 'creative';
+            document.getElementById('inv-title').textContent = isCreative ? 'CATALOGUE CRÉATIF (BLOCS INFINIS)' : 'INVENTAIRE & ARTISANAT';
+            document.getElementById('survival-crafting-section').classList.toggle('hidden', isCreative);
+            document.getElementById('creative-catalog-section').classList.toggle('hidden', !isCreative);
+
+            if (isCreative) {
+                const grid = document.getElementById('creative-grid');
+                grid.innerHTML = '';
+                const allCreatives = [
+                    ITEMS.GRASS, ITEMS.DIRT, ITEMS.STONE, ITEMS.COBBLESTONE,
+                    ITEMS.PLANKS, ITEMS.WOOD, ITEMS.LEAVES, ITEMS.SAND,
+                    ITEMS.BRICK, ITEMS.GLASS, ITEMS.COAL_ORE, ITEMS.BEDROCK, ITEMS.APPLE
+                ];
+                allCreatives.forEach((id) => {
+                    const card = document.createElement('button');
+                    card.className = 'mc-btn p-2 flex flex-col items-center gap-1.5 text-center';
+                    card.onclick = () => {
+                        creativeHotbar[activeSlot] = id;
+                        renderHotbar();
+                        toggleInventory(false);
+                    };
+                    card.innerHTML = `
+                        <img src="${itemIcons[getTileIndex(id, 0)]}" class="w-9 h-9" style="image-rendering:pixelated">
+                        <span class="text-[10px] leading-tight">${ITEM_DATA[id].name.split(' ')[0]}</span>
+                    `;
+                    grid.appendChild(card);
+                });
+            } else {
+                // Recettes d'artisanat
+                const recList = document.getElementById('crafting-recipes-list');
+                recList.innerHTML = '';
+                RECIPES.forEach((rec) => {
+                    const have = countItemInInventory(rec.inItem);
+                    const canCraft = have >= rec.inCount;
+                    const btn = document.createElement('button');
+                    btn.disabled = !canCraft;
+                    btn.className = `mc-btn ${canCraft ? 'mc-btn-green' : ''} p-2 flex items-center justify-between text-left text-xs`;
+                    btn.onclick = () => {
+                        if (countItemInInventory(rec.inItem) >= rec.inCount) {
+                            consumeItemFromInventory(rec.inItem, rec.inCount);
+                            addToSurvivalInventory(rec.outItem, rec.outCount);
+                            renderInventoryModal();
+                            showToast(`Fabriqué : ${rec.label}`);
+                        }
+                    };
+                    btn.innerHTML = `
+                        <div class="flex items-center gap-2">
+                            <img src="${itemIcons[getTileIndex(rec.outItem, 0)]}" class="w-7 h-7" style="image-rendering:pixelated">
+                            <div>
+                                <div class="font-bold">${rec.label}</div>
+                                <div class="text-[10px] text-stone-200">Requis: ${rec.inCount}x ${ITEM_DATA[rec.inItem].name} (${have})</div>
+                            </div>
+                        </div>
+                        <span class="px-2 py-1 bg-black/40 text-[10px]">CRAFT</span>
+                    `;
+                    recList.appendChild(btn);
+                });
+
+                // Grille des 36 emplacements (27 sac + 9 hotbar)
+                const invGrid = document.getElementById('survival-inv-grid');
+                invGrid.innerHTML = '';
+                // Afficher d'abord les 27 emplacements du sac (9..35), puis la barre d'action (0..8)
+                const order = [];
+                for (let i = 9; i < 36; i++) order.push(i);
+                for (let i = 0; i < 9; i++) order.push(i);
+
+                order.forEach((slotIdx) => {
+                    const item = survivalInventory[slotIdx];
+                    const el = createSlotElement(item?.id || null, item?.count || null, selectedSwapSlot === slotIdx, () => {
+                        if (selectedSwapSlot === null) {
+                            if (survivalInventory[slotIdx]) {
+                                selectedSwapSlot = slotIdx;
+                                renderInventoryModal();
+                            }
+                        } else {
+                            // Échanger les 2 emplacements
+                            const temp = survivalInventory[selectedSwapSlot];
+                            survivalInventory[selectedSwapSlot] = survivalInventory[slotIdx];
+                            survivalInventory[slotIdx] = temp;
+                            selectedSwapSlot = null;
+                            renderInventoryModal();
+                            renderHotbar();
+                        }
+                    });
+                    if (slotIdx < 9) el.style.borderColor = '#facc15';
+                    invGrid.appendChild(el);
+                });
+            }
+        }
+
+        function toggleInventory(force) {
+            isInventoryOpen = force !== undefined ? force : !isInventoryOpen;
+            const modal = document.getElementById('inventory-modal');
+            if (isInventoryOpen) {
+                selectedSwapSlot = null;
+                renderInventoryModal();
+                modal.classList.remove('hidden');
+                document.getElementById('crosshair').classList.add('hidden');
+                if (document.pointerLockElement === canvas) document.exitPointerLock();
+            } else {
+                modal.classList.add('hidden');
+                if (isPlaying) {
+                    document.getElementById('crosshair').classList.remove('hidden');
+                    try { canvas.requestPointerLock(); } catch (e) {}
+                }
+            }
+        }
+
+        // --- 12. GESTION DES MODES, TEXTURES & MENUS ---
+        function setGameMode(mode) {
+            settings.gameMode = mode;
+            saveSettings();
+
+            const isSurv = mode === 'survival';
+            document.getElementById('badge-survival').classList.toggle('hidden', !isSurv);
+            document.getElementById('badge-creative').classList.toggle('hidden', isSurv);
+            document.getElementById('select-survival-btn').classList.toggle('mc-btn-amber', isSurv);
+            document.getElementById('select-creative-btn').classList.toggle('mc-btn-green', !isSurv);
+
+            const hudBadge = document.getElementById('hud-gamemode-badge');
+            hudBadge.textContent = isSurv ? 'SURVIE' : 'CRÉATIF';
+            hudBadge.className = isSurv
+                ? 'px-1.5 py-0.5 bg-amber-800 border border-amber-400 text-amber-200 text-[10px]'
+                : 'px-1.5 py-0.5 bg-sky-800 border border-sky-400 text-sky-200 text-[10px]';
+
+            document.getElementById('hint-fly-row').classList.toggle('hidden', isSurv);
+
+            if (isSurv) {
+                player.isFlying = false;
+                player.highestY = player.pos.y;
+            }
+
+            renderSurvivalBars();
+            renderHotbar();
+            showToast(`Mode de jeu : ${isSurv ? 'SURVIE' : 'CRÉATIF'}`);
+        }
+
+        function applyTexturePack(packId) {
+            settings.texturePack = packId;
+            saveSettings();
+
+            const pack = TEXTURE_PACKS[packId];
+            atlasTexture = buildTextureAtlas(packId);
+            opaqueMat.map = atlasTexture; opaqueMat.needsUpdate = true;
+            transMat.map = atlasTexture; transMat.needsUpdate = true;
+
+            updateAtmosphere();
+            document.getElementById('home-pack-label').textContent = pack.name;
+            document.getElementById('hud-pack-name').textContent = pack.name;
+
+            renderPacksUI();
+            renderHotbar();
+            showToast(`Pack appliqué : ${pack.name}`);
+        }
+
+        function updateAtmosphere() {
+            const pack = TEXTURE_PACKS[settings.texturePack];
+            scene.background = new THREE.Color(pack.sky);
+            if (settings.fog) {
+                const maxD = settings.renderDistance * CHUNK_SIZE;
+                scene.fog = new THREE.Fog(pack.fog, maxD * 0.45, maxD * 0.98);
+            } else {
+                scene.fog = null;
+            }
+        }
+
+        function renderPacksUI() {
+            const cont = document.getElementById('packs-container');
+            cont.innerHTML = '';
+            Object.values(TEXTURE_PACKS).forEach((pack) => {
+                const active = settings.texturePack === pack.id;
+                const card = document.createElement('div');
+                card.className = `mc-panel-dark p-3.5 cursor-pointer flex flex-col justify-between gap-3 ${active ? 'outline outline-4 outline-amber-400' : ''}`;
+                card.onclick = () => applyTexturePack(pack.id);
+
+                const swatches = pack.swatches.map(c =>
+                    `<span class="w-5 h-5 border-2 border-black inline-block" style="background:${c}"></span>`
+                ).join('');
+
+                card.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-sm font-bold text-amber-300">${pack.name}</span>
+                            ${active ? '<span class="px-1.5 py-0.5 bg-emerald-700 text-white text-[10px]">ACTIF</span>' : ''}
+                        </div>
+                        <p class="text-[11px] text-stone-300 leading-snug">${pack.desc}</p>
+                    </div>
+                    <div class="flex justify-between items-center pt-2 border-t border-stone-700">
+                        <div class="flex gap-1">${swatches}</div>
+                        <span class="text-[10px] text-stone-400">${active ? 'Sélectionné' : 'Cliquer'}</span>
+                    </div>
+                `;
+                cont.appendChild(card);
+            });
+        }
+
+        const KEY_LABELS = {
+            forward: 'Avancer',
+            backward: 'Reculer',
+            left: 'Gauche',
+            right: 'Droite',
+            jump: 'Sauter / Monter',
+            sprint: 'Sprinter',
+            sneak: 'Accroupir / Descendre',
+            fly: 'Voler (Créatif)',
+            inventory: 'Inventaire / Craft'
+        };
+
+        function renderKeybinds() {
+            const grid = document.getElementById('keybinds-grid');
+            grid.innerHTML = '';
+            Object.entries(KEY_LABELS).forEach(([act, label]) => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between bg-stone-300 border-2 border-stone-600 px-3 py-2 text-xs font-bold text-stone-900';
+                const btn = document.createElement('button');
+                const listening = listeningKeyAction === act;
+                btn.className = `mc-btn ${listening ? 'mc-btn-amber' : ''} px-2.5 py-1 text-[11px] min-w-[85px]`;
+                btn.textContent = listening ? 'TOUCHE...' : formatKeyName(settings.keybinds[act]);
+                btn.onclick = () => {
+                    listeningKeyAction = act;
+                    renderKeybinds();
+                };
+                row.innerHTML = `<span>${label}</span>`;
+                row.appendChild(btn);
+                grid.appendChild(row);
+            });
+        }
+
+        function updateControlLabels() {
+            const kb = settings.keybinds;
+            document.getElementById('hint-inv').textContent = formatKeyName(kb.inventory);
+            document.getElementById('hint-fly').textContent = formatKeyName(kb.fly);
+            document.getElementById('home-inv-key').textContent = formatKeyName(kb.inventory);
+            document.getElementById('home-keys-summary').textContent =
+                `${formatKeyName(kb.forward)} ${formatKeyName(kb.left)} ${formatKeyName(kb.backward)} ${formatKeyName(kb.right)}`;
+        }
+
+        function startGame() {
+            if (player.isDead) return;
+            document.getElementById('menu-overlay').classList.add('hidden');
+            document.getElementById('hud').classList.remove('hidden');
+            document.getElementById('crosshair').classList.remove('hidden');
+            isPlaying = true;
+            try { canvas.requestPointerLock(); } catch (e) {}
+        }
+
+        function pauseGame() {
+            isPlaying = false;
+            isMouseDownLeft = false;
+            resetMining();
+            document.getElementById('hud').classList.add('hidden');
+            document.getElementById('crosshair').classList.add('hidden');
+            document.getElementById('menu-overlay').classList.remove('hidden');
+            document.getElementById('pause-indicator').classList.remove('hidden');
+            document.getElementById('start-game-btn').textContent = 'REPRENDRE LA PARTIE';
+            if (document.pointerLockElement === canvas) document.exitPointerLock();
+        }
+
+        function openTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                const active = b.dataset.tab === tabId;
+                b.classList.toggle('mc-btn-green', active);
+            });
+            document.querySelectorAll('.tab-content').forEach(c => {
+                c.classList.toggle('hidden', c.id !== tabId);
+            });
+        }
+
+        function showToast(msg) {
+            const el = document.getElementById('toast-msg');
+            el.textContent = msg;
+            el.classList.remove('opacity-0');
+            clearTimeout(el._t);
+            el._t = setTimeout(() => el.classList.add('opacity-0'), 1900);
+        }
+
+        // Événements UI
+        document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => openTab(b.dataset.tab)));
+        document.getElementById('start-game-btn').addEventListener('click', startGame);
+        document.getElementById('hud-pause-btn').addEventListener('click', pauseGame);
+        document.getElementById('close-inv-btn').addEventListener('click', () => toggleInventory(false));
+
+        document.getElementById('select-survival-btn').addEventListener('click', () => setGameMode('survival'));
+        document.getElementById('select-creative-btn').addEventListener('click', () => setGameMode('creative'));
+
+        document.getElementById('respawn-btn').addEventListener('click', () => {
+            document.getElementById('death-screen').classList.add('hidden');
+            resetSurvivalInventory();
+            spawnPlayer();
+            renderHotbar();
+            startGame();
+        });
+
+        document.getElementById('death-menu-btn').addEventListener('click', () => {
+            document.getElementById('death-screen').classList.add('hidden');
+            resetSurvivalInventory();
+            spawnPlayer();
+            renderHotbar();
+            pauseGame();
+        });
+
+        document.getElementById('new-world-btn').addEventListener('click', () => {
+            worldSeed = Math.floor(Math.random() * 99999);
+            blockOverrides.clear();
+            for (const ch of chunks.values()) {
+                if (ch.opaqueMesh) { scene.remove(ch.opaqueMesh); ch.opaqueMesh.geometry.dispose(); }
+                if (ch.transMesh) { scene.remove(ch.transMesh); ch.transMesh.geometry.dispose(); }
+            }
+            chunks.clear();
+            resetSurvivalInventory();
+            spawnPlayer();
+            renderHotbar();
+            showToast('Nouveau monde généré !');
+        });
+
+        // Sliders optimisation
+        const rdSlider = document.getElementById('rd-slider');
+        const rdLabels = { 2: '2 Chunks (Ultra Rapide)', 3: '3 Chunks (Fluide)', 4: '4 Chunks (Normal)', 5: '5 Chunks (Étendu)', 6: '6 Chunks (Max)' };
+        rdSlider.value = settings.renderDistance;
+        document.getElementById('rd-label').textContent = rdLabels[settings.renderDistance];
+        rdSlider.addEventListener('input', (e) => {
+            settings.renderDistance = parseInt(e.target.value, 10);
+            document.getElementById('rd-label').textContent = rdLabels[settings.renderDistance];
+            saveSettings();
+            updateAtmosphere();
+            updateWorldChunks(player.pos.x, player.pos.z, true);
+        });
+
+        const sensSlider = document.getElementById('sens-slider');
+        sensSlider.value = Math.round(settings.sensitivity * 100);
+        document.getElementById('sens-label').textContent = `${sensSlider.value}%`;
+        sensSlider.addEventListener('input', (e) => {
+            const v = parseInt(e.target.value, 10);
+            settings.sensitivity = v / 100;
+            document.getElementById('sens-label').textContent = `${v}%`;
+            saveSettings();
+        });
+
+        document.getElementById('fog-check').checked = settings.fog;
+        document.getElementById('fog-check').addEventListener('change', (e) => {
+            settings.fog = e.target.checked;
+            saveSettings();
+            updateAtmosphere();
+        });
+
+        document.getElementById('particles-check').checked = settings.particles;
+        document.getElementById('particles-check').addEventListener('change', (e) => {
+            settings.particles = e.target.checked;
+            saveSettings();
+        });
+
+        document.getElementById('btn-azerty').addEventListener('click', () => {
+            settings.keybinds.forward = 'KeyW';
+            settings.keybinds.left = 'KeyA';
+            settings.keybinds.backward = 'KeyS';
+            settings.keybinds.right = 'KeyD';
+            saveSettings();
+            renderKeybinds();
+            updateControlLabels();
+            showToast('Touches AZERTY (Z Q S D) appliquées');
+        });
+
+        document.getElementById('btn-qwerty').addEventListener('click', () => {
+            settings.keybinds.forward = 'KeyW';
+            settings.keybinds.left = 'KeyA';
+            settings.keybinds.backward = 'KeyS';
+            settings.keybinds.right = 'KeyD';
+            saveSettings();
+            renderKeybinds();
+            updateControlLabels();
+            showToast('Touches QWERTY (W A S D) appliquées');
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- 13. BOUCLE PRINCIPALE ---
+        let lastTime = performance.now();
+        let frames = 0, fpsClock = 0, camAngle = 0;
+
+        function animate(now) {
+            requestAnimationFrame(animate);
+            const dt = Math.min((now - lastTime) / 1000, 0.05);
+            lastTime = now;
+
+            frames++;
+            fpsClock += dt;
+            if (fpsClock >= 0.5) {
+                document.getElementById('hud-fps').textContent = Math.round(frames / fpsClock);
+                frames = 0;
+                fpsClock = 0;
+            }
+
+            if (isPlaying && !isInventoryOpen && !player.isDead) {
+                updateSimulation(dt);
+                updateWorldChunks(player.pos.x, player.pos.z, false);
+                updateParticles(dt);
+
+                document.getElementById('hud-coords').textContent =
+                    `${Math.floor(player.pos.x)}, ${Math.floor(player.pos.y)}, ${Math.floor(player.pos.z)}`;
+            } else {
+                camAngle += dt * 0.14;
+                camera.position.set(
+                    player.pos.x + Math.cos(camAngle) * 14,
+                    player.pos.y + 7,
+                    player.pos.z + Math.sin(camAngle) * 14
+                );
+                camera.lookAt(player.pos.x, player.pos.y + 1, player.pos.z);
+                outlineBox.visible = false;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function () {
+            resetSurvivalInventory();
+            applyTexturePack(settings.texturePack);
+            setGameMode(settings.gameMode);
+            renderKeybinds();
+            updateControlLabels();
+            spawnPlayer();
+            requestAnimationFrame(animate);
+        };
+    </script>
+</body>
+</html>
+```
+
+### Changements apportés :
+1. **Direction artistique authentique Voxel** : Remplacement complet du style néon/glassmorphism par une interface tactile inspirée de Minecraft et Bloxd.io (panneaux biseautés, boutons en relief cliquables, police pixel *Silkscreen* avec ombres noires dures et icônes SVG pixel-art).
+2. **Mode Survie & Mode Créatif** :
+   - **Survie** : 10 cœurs de vie, 10 gigots de faim, dégâts de chute, minage progressif avec animation de fissures sur les blocs, récolte d'objets empilables (jusqu'à 64), Pommes comestibles et panneau d'**Artisanat rapide** dans l'inventaire (`E`).
+   - **Créatif** : Blocs illimités, cassage instantané et vol libre (`F` ou double-saut).
+3. **Packs de textures & Crédits** : 4 nouveaux packs (*Vanilla Craft*, *Bloxd Smooth*, *Automne & Terre Cuite*, *Nuit Nordique*) et onglet **Crédits** avec le bouton **`main website`** vers `https://snipecorp.clemfrdu31.workers.dev/`.
